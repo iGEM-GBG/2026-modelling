@@ -1,0 +1,1 @@
+params.waml with all relevant values + literature sources
