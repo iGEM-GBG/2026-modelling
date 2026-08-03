@@ -24,6 +24,20 @@ import numpy as np
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import os
+
+# ──────────────────────────────────────────────────────────────
+# INTERMEDIATE OUTPUT (read by Module 2)
+# ──────────────────────────────────────────────────────────────
+# Module 2 (and later modules) do NOT import this file or re-run its
+# ODE. Instead, this script writes [RL](t) to a plain-text file per
+# ligand condition, which the next module reads and interpolates.
+# These files are regenerated every run and are gitignored -- only
+# this script (the source of truth) and the output figures are
+# version-controlled. Re-run this script after changing any
+# parameter above so Module 2's inputs don't go stale.
+INTERMEDIATE_DIR = "../intermediate"
+os.makedirs(INTERMEDIATE_DIR, exist_ok=True)
 
 # ──────────────────────────────────────────────────────────────
 # PARAMETERS
@@ -105,6 +119,17 @@ for L in L_values_nM:
         atol     = 1e-10,
     )
     results[L] = sol
+
+    # --- write [RL](t) to disk for Module 2 to read ---
+    out_path = os.path.join(INTERMEDIATE_DIR, f"module1_output_L{L:.1f}nM.txt")
+    header = (
+        "Module 1 output -- HRH4/Histamine binding kinetics\n"
+        f"L = {L} nM ; K_D = {K_D} nM ; k_on = {k_on} 1/(nM*s) ; "
+        f"k_off = {k_off} 1/s ; R_total = {R_total} nM\n"
+        "columns: time_s   RL_nM"
+    )
+    np.savetxt(out_path, np.column_stack([sol.t, sol.y[0]]),
+               header=header, fmt="%.6e")
 
 # Dose-response: steady-state [RL] across a dense L range
 L_range    = np.logspace(-1, 4, 400)   # 0.1 nM to 10,000 nM
