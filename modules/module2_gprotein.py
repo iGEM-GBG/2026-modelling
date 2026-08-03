@@ -75,27 +75,26 @@ G_total = 70.0        # nM   -- Ghaemmaghami et al. 2003 (placeholder)
 k_RGS = 0.0
 
 # ──────────────────────────────────────────────────────────────
-# LOAD MODULE 1 OUTPUT  (or generate placeholder if running standalone)
+# LOAD MODULE 1 OUTPUT (read from disk -- Module 1 must be run first)
 # ──────────────────────────────────────────────────────────────
-def run_module1(L_nM):
-    """Re-run Module 1 for a given ligand concentration."""
-    # Module 1 parameters
-    k_on    = 1e-3
-    k_off   = 5e-3
-    R_total = 50.0
+# Module 2 no longer re-implements Module 1's ODE. It reads the
+# [RL](t) text file that module1_binding.py wrote for each ligand
+# condition. This is the single source of truth for Module 1's
+# parameters/behaviour -- if you change something in Module 1,
+# re-run it before re-running Module 2.
+INTERMEDIATE_DIR = "../intermediate"
+os.makedirs(INTERMEDIATE_DIR, exist_ok=True)
 
-    def binding_ode(t, y, k_on, k_off, R_total, L):
-        RL = y[0]
-        R  = R_total - RL
-        return [k_on * R * L - k_off * RL]
-
-    t_eval = np.linspace(0, 3600, 2000)
-    sol = solve_ivp(
-        binding_ode, (0, 3600), [0.0], t_eval=t_eval,
-        args=(k_on, k_off, R_total, L_nM),
-        method='RK45', rtol=1e-8, atol=1e-10
-    )
-    return sol.t, sol.y[0]
+def load_module1_output(L_nM):
+    """Load [RL](t) written by module1_binding.py for a given [L]."""
+    path = os.path.join(INTERMEDIATE_DIR, f"module1_output_L{L_nM:.1f}nM.txt")
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"{path} not found. Run module1_binding.py first to "
+            f"generate Module 1's output for [L] = {L_nM} nM."
+        )
+    data = np.loadtxt(path)
+    return data[:, 0], data[:, 1]   # t, RL
 
 # ──────────────────────────────────────────────────────────────
 # ODE DEFINITION
@@ -153,8 +152,8 @@ colors = plt.cm.viridis(np.linspace(0.15, 0.85, len(L_values_nM)))
 results_m2 = {}
 
 for L in L_values_nM:
-    # --- Chain: get [RL](t) from Module 1 ---
-    t_m1, RL_m1 = run_module1(L)
+    # --- Chain: get [RL](t) from Module 1's saved output ---
+    t_m1, RL_m1 = load_module1_output(L)
     RL_interp = interp1d(t_m1, RL_m1, kind='cubic', fill_value='extrapolate')
 
     # --- Run Module 2 ---
@@ -170,6 +169,18 @@ for L in L_values_nM:
         atol   = 1e-10,
     )
     results_m2[L] = sol
+
+    # --- write [Gbg](t) (and the other two species) to disk for Module 3 ---
+    out_path = os.path.join(INTERMEDIATE_DIR, f"module2_output_L{L:.1f}nM.txt")
+    header = (
+        "Module 2 output -- G-protein activation cycle (Dsst2 chassis)\n"
+        f"L = {L} nM ; k_act = {k_act} 1/(nM*s) ; k_hyd = {k_hyd} 1/s ; "
+        f"k_reassoc = {k_reassoc} 1/(nM*s) ; G_total = {G_total} nM\n"
+        "columns: time_s   Ga_GTP_nM   Ga_GDP_nM   Gbg_nM"
+    )
+    np.savetxt(out_path,
+               np.column_stack([sol.t, sol.y[0], sol.y[1], sol.y[2]]),
+               header=header, fmt="%.6e")
 
 # Amplification factor across L values
 # Amplif = k_act * [G_GDP] / k_off  (per-RL-molecule rate / dissociation rate)
@@ -225,7 +236,7 @@ ax3.set_ylim(bottom=0)
 # ── Panel D: k_act sensitivity — effect of chimera variants ──
 ax4 = fig.add_subplot(gs[1, 1])
 L_fixed = 5.0   # at K_D
-t_m1, RL_m1 = run_module1(L_fixed)
+t_m1, RL_m1 = load_module1_output(L_fixed)
 RL_interp_fixed = interp1d(t_m1, RL_m1, kind='cubic', fill_value='extrapolate')
 t_eval = np.linspace(t_start, t_end, n_points)
 
