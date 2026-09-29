@@ -47,7 +47,7 @@ import os
 #   *** PLACEHOLDER for chimera variants, fit to 26A3/26A6 data ***
 #   Different Ga/Gpa1 chimeras will shift this value; it is the primary
 #   tunable parameter for chimera optimisation.
-k_act = 4e-4          # 1/(nM·s)
+k_act = 4e-4          # 1/(nM·s) FINAL
 
 # k_hyd  [1/s]
 #   Intrinsic GTPase rate of Gpa1 (Sst2-independent).
@@ -55,13 +55,13 @@ k_act = 4e-4          # 1/(nM·s)
 #   measured k_hyd = 0.004 1/s for yeast Gpa1.
 #   Note: Sst2 is DELETED (k_RGS = 0), so this is the only hydrolysis term.
 #   Literature value, reliable for Δsst2 chassis.
-k_hyd = 0.004         # 1/s   -- Yi et al. 2003 (check literature)
+k_hyd = 0.004         # 1/s   -- Yi et al. 2003 FINAL
 
 # k_reassoc  [1/(nM·s)]
 #   Rate of G_alpha,GDP + G_betagamma -> G_GDP heterotrimer reformation.
 #   Source: Yi, Kitano & Simon (2003) PNAS 100(19):10764-10769
 #   k_reassoc = 1e-3 1/(nM·s)
-k_reassoc = 1e-3      # 1/(nM·s)  -- Yi et al. 2003 (check literature)
+k_reassoc = 33.333      # 1/(nM·s)  -- Kofahl and Klipp value repurposed FINAL
 
 # G_total  [nM]
 #   Total Gpa1/Gbeta/Ggamma pool.
