@@ -124,21 +124,21 @@ Fus3_total = 189.8    # nM  -- PLACEHOLDER (SGD median abundance)
 # consistency with the rest of the pipeline.
 # TODO: replace with Kofahl & Klipp (2004) / BIOMD0000000032 values,
 # or fitted wet-lab timecourse data, before trusting these numbers.
-k_activate_Ste20   = 1e-4   # nM^-1 s^-1  -- PLACEHOLDER
-k_deactivate_Ste20  = 2e-3   # s^-1        -- PLACEHOLDER
+k_activate_Ste20   = 0.083   # nM^-1 s^-1  -- Kofahl and Klipp model value FINAL
+k_deactivate_Ste20  = 0.017   # s^-1        -- Kofahl and Klipp model value FINAL
 
-k_activate_Ste11   = 1e-4   # nM^-1 s^-1  -- PLACEHOLDER
-k_deactivate_Ste11  = 2e-3   # s^-1        -- PLACEHOLDER
+k_activate_Ste11   = 0.167   # nM^-1 s^-1  -- Kofahl and Klipp model value FINAL
+k_deactivate_Ste11  = 0.083   # s^-1        -- Kofahl and Klipp model value FINAL
 
-k_activate_Ste7    = 1e-4   # nM^-1 s^-1  -- PLACEHOLDER
-k_deactivate_Ste7   = 2e-3   # s^-1        -- PLACEHOLDER
+k_activate_Ste7    = 0.783   # nM^-1 s^-1  -- Kofahl and Klipp model value FINAL
+k_deactivate_Ste7   = 0.083   # s^-1        -- Kofahl and Klipp model value FINAL
 
-k_activate_Fus3    = 1e-4   # nM^-1 s^-1  -- PLACEHOLDER
+k_activate_Fus3    = 5.75   # nM^-1 s^-1  -- Kofahl and Klipp model value FINAL
 # k_deactivate_Fus3 lumps Msg5 + Ptp2/Ptp3 phosphatase activity into a
 # single fixed rate (no transcriptional feedback -- see docstring).
 # Named phosphatases: Doi et al. (1994) EMBO J 13:61-70 (Msg5);
 # Zhan, Deschenes & Guan (1997) Genes Dev 11:1690-1702 (Ptp2/Ptp3).
-k_deactivate_Fus3   = 2e-3   # s^-1        -- PLACEHOLDER
+k_deactivate_Fus3   = 0.833   # s^-1        -- Kofahl and Klipp model value FINAL
 
 # ──────────────────────────────────────────────────────────────
 # ODE DEFINITION
