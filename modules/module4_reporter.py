@@ -107,8 +107,8 @@ Ste12_total = 105.5   # nM  -- PLACEHOLDER (SGD median abundance)
 
 # *** PLACEHOLDERS, no clean literature anchor for Dig1/2 release kinetics ***
 # magnitude-matched to Module 3's rate constants for pipeline consistency.
-k_activate_Ste12   = 1e-4   # nM^-1 s^-1  -- PLACEHOLDER
-k_deactivate_Ste12 = 2e-3   # s^-1        -- PLACEHOLDER
+k_activate_Ste12   = 0.3   # nM^-1 s^-1  -- Kofahl and Klipp model value FINAL
+k_deactivate_Ste12 = 0.167   # s^-1        -- Kofahl and Klipp model value FINAL
 
 # --- Transcription -------------------------------------------------------
 # *** PLACEHOLDERS *** -- no specific measured rate for a synthetic
