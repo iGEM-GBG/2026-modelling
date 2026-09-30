@@ -172,7 +172,7 @@ def mapk_ode(t, y, k_act20, k_deact20, k_act11, k_deact11,
 # SIMULATION
 # ──────────────────────────────────────────────────────────────
 t_start  = 0
-t_end    = 3600        # 1 hour, matching Modules 1-2
+t_end    = 10800        # 3 hours, matching Modules 1-2
 n_points = 5000         # higher resolution than Module 2 (2000);
                         # downstream kinetics may resolve faster dynamics
 

@@ -142,7 +142,7 @@ def gprotein_ode(t, y, k_act, k_hyd, k_reassoc, G_total, RL_interp):
 # SIMULATION
 # ──────────────────────────────────────────────────────────────
 t_start  = 0
-t_end    = 3600        # 1 hour
+t_end    = 10800        # 3 hours
 n_points = 2000
 
 # Ligand concentrations matching Module 1

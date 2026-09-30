@@ -202,7 +202,7 @@ y0 = [0.0, mRNA_basal, Rep_dark_basal, Rep_mat_basal]
 # SIMULATION
 # ──────────────────────────────────────────────────────────────
 t_start  = 0
-t_end    = 4 * 3600     # 4 hours -- extended from Modules 1-3's 1 hour,
+t_end    = 6 * 3600     # 4 hours -- extended from Modules 1-3's 3 hours,
                          # since transcription/translation/maturation are
                          # slower processes (per your input)
 n_points = 5000
