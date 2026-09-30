@@ -97,19 +97,19 @@ def load_module2_output(L_nM):
 #
 # Ste20: median abundance 3869 +/- 1268 molecules/cell (SGD)
 #   3869 * 0.03954 ~ 153.0 nM
-Ste20_total = 153.0   # nM  -- PLACEHOLDER (SGD median abundance)
+Ste20_total = 153.0   # nM  SGD median abundance, FINAL
 
 # Ste11: median abundance 1533 +/- 425 molecules/cell (SGD)
 #   1533 * 0.03954 ~ 60.6 nM
-Ste11_total = 60.6    # nM  -- PLACEHOLDER (SGD median abundance)
+Ste11_total = 60.6    # nM  SGD median abundance, FINAL
 
 # Ste7: median abundance 1466 +/- 778 molecules/cell (SGD)
 #   1466 * 0.03954 ~ 58.0 nM
-Ste7_total = 58.0     # nM  -- PLACEHOLDER (SGD median abundance)
+Ste7_total = 58.0     # nM  SGD median abundance, FINAL
 
 # Fus3: median abundance 4800 +/- 1651 molecules/cell (SGD)
 #   4800 * 0.03954 ~ 189.8 nM
-Fus3_total = 189.8    # nM  -- PLACEHOLDER (SGD median abundance)
+Fus3_total = 189.8    # nM  SGD median abundance, FINAL
 
 # --- Rate constants ----------------------------------------------------
 # *** ALL EIGHT PLACEHOLDERS -- see MODELING STATUS docstring above ***
@@ -177,7 +177,7 @@ n_points = 5000         # higher resolution than Module 2 (2000);
                         # downstream kinetics may resolve faster dynamics
 
 # Ligand concentrations matching Modules 1-2
-L_values_nM = [0.5, 2.0, 5.0, 20.0, 100.0, 500.0]
+L_values_nM = [1e5]
 colors = plt.cm.viridis(np.linspace(0.15, 0.85, len(L_values_nM)))
 
 y0 = [0.0, 0.0, 0.0, 0.0]   # zero basal activity (unstimulated cell)
@@ -242,7 +242,7 @@ ax1.set_ylim(bottom=0)
 
 # ── Panel B: All four tiers for [L] = 5 nM = K_D ─────────────
 ax2 = fig.add_subplot(gs[0, 1])
-L_demo = 5.0
+L_demo = L_values_nM[0]
 sol_demo = results_m3[L_demo]
 t_min = sol_demo.t / 60
 ax2.plot(t_min, sol_demo.y[0], lw=2, color='steelblue',  label='Ste20*')
