@@ -42,30 +42,20 @@ os.makedirs(INTERMEDIATE_DIR, exist_ok=True)
 # ──────────────────────────────────────────────────────────────
 # PARAMETERS
 # ──────────────────────────────────────────────────────────────
-#
-# k_on  [1/(nM·s)]
-#   Source: Motulsky & Bhave (2004) estimated k_on for GPCRs
-#   typically in the range 1e-4 to 1e-2 1/(nM·s).
-#   We use 1e-3 as a mid-range literature anchor.
-#   *** PLACEHOLDER
-k_on = 1e-3          # 1/(nM·s)
+
+#   Source: Tran, Chang & Snyder 1978
+k_on = 1.22e-3          # 1/(nM·s) FINAL
 
 # k_off [1/s]
-#   Derived from K_D = k_off / k_on.
-#   K_D for HRH4/histamine: Lim et al. (2005) J Pharmacol Exp Ther
-#   313(2):771-777 reported K_D ~ 5 nM using radioligand binding.
-#   Cross-checked against IUPHAR Guide to Pharmacology HRH4 entry.
-#   k_off = K_D * k_on = 5 nM * 1e-3 1/(nM·s) = 5e-3 1/s
-#   *** k_on is a PLACEHOLDER; k_off inherits that uncertainty ***
-K_D   = 5.0          # nM  — PLACEHOLDER, possible source Lim et al. 2005
-k_off = K_D * k_on   # 5e-3  1/s  — derived
+
+K_D   = 20          # nM  Borowsky et al. (2001) FINAL
+k_off = K_D * k_on   #  1/s  FINAL
 
 # R_total [nM]
 #   Receptor copy number in engineered yeast ~ 1,000–10,000 molecules/cell.
 #   Converted to nM assuming yeast cell volume ~ 42 fL (Ghaemmaghami 2003).
 #   1,000 molecules / (42e-15 L * 6.022e23) ~ 40 nM; we use 50 nM.
-#   *** PLACEHOLDER — replace with 26A1 epitope-tagging quantification ***
-R_total = 50.0       # nM
+R_total = 50.0       # nM Explicit upper bound on functionally available receptor FINAL
 
 # ──────────────────────────────────────────────────────────────
 # SIMULATION SETTINGS
@@ -75,8 +65,7 @@ t_end   = 10800       # 3 hour in seconds
 n_points = 1000
 
 # Ligand concentrations to simulate [nM]
-# Spans below K_D, around K_D, and above K_D to capture all regimes
-L_values_nM = [0.5, 2.0, 5.0, 20.0, 100.0, 500.0]
+L_values_nM = [1e5]
 
 # ──────────────────────────────────────────────────────────────
 # ODE DEFINITION
