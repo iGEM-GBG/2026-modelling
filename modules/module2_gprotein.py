@@ -65,10 +65,7 @@ k_reassoc = 33.333      # 1/(nM·s)  -- Kofahl and Klipp value repurposed FINAL
 
 # G_total  [nM]
 #   Total Gpa1/Gbeta/Ggamma pool.
-#   Native Gpa1 (GPA1): ~1800 molecules/cell from Ghaemmaghami et al.
-#   (2003) Nature 425:737. Converted: 1800 / (6.022e23 * 42e-15) ~ 71 nM
-#   *** PLACEHOLDER — use your strain's actual expression level ***
-G_total = 70.0        # nM   -- Ghaemmaghami et al. 2003 (placeholder)
+G_total = 200        # nM Gpa1 median abundance, Ho et al. 2018 unified dataset via SGD, 5057 molecules/cell, 42 fL conversion
 
 # k_RGS = 0  (Sst2 deleted in biosensor chassis)
 # Reference: Ehrenworth et al. 2017 Biochemistry; thesis Figure 6C
@@ -146,7 +143,7 @@ t_end    = 10800        # 3 hours
 n_points = 2000
 
 # Ligand concentrations matching Module 1
-L_values_nM = [0.5, 2.0, 5.0, 20.0, 100.0, 500.0]
+L_values_nM = [1e5]
 colors = plt.cm.viridis(np.linspace(0.15, 0.85, len(L_values_nM)))
 
 results_m2 = {}
@@ -207,7 +204,7 @@ ax1.set_ylim(bottom=0)
 
 # ── Panel B: All three species for [L] = 5 nM = K_D ─────────
 ax2 = fig.add_subplot(gs[0, 1])
-L_demo = 5.0
+L_demo = L_values_nM[0]
 sol_demo = results_m2[L_demo]
 t_min = sol_demo.t / 60
 ax2.plot(t_min, sol_demo.y[0], lw=2, color='steelblue',  label='$G_{\\alpha,GTP}$')
