@@ -103,7 +103,7 @@ def load_module3_output(L_nM):
 # Ste12: median abundance 2668 +/- 678 molecules/cell (SGD unified
 # dataset, same method/conversion as Module 3's totals).
 #   2668 * 0.03954 ~ 105.5 nM
-Ste12_total = 105.5   # nM  -- PLACEHOLDER (SGD median abundance)
+Ste12_total = 105.5   # nM  -- FINAL (SGD median abundance)
 
 # *** PLACEHOLDERS, no clean literature anchor for Dig1/2 release kinetics ***
 # magnitude-matched to Module 3's rate constants for pipeline consistency.
@@ -111,15 +111,24 @@ k_activate_Ste12   = 0.3   # nM^-1 s^-1  -- Kofahl and Klipp model value FINAL
 k_deactivate_Ste12 = 0.167   # s^-1        -- Kofahl and Klipp model value FINAL
 
 # --- Transcription -------------------------------------------------------
-# *** PLACEHOLDERS *** -- no specific measured rate for a synthetic
-# pheromone-responsive promoter in this construct. k_transcribe_basal is
-# set to roughly 1/30th of the typical fully-induced rate, loosely
-# informed by commonly reported ~20-50x induction ranges for
-# pheromone-responsive promoters in the yeast synthetic biology
-# literature (not a specific measured value for THIS promoter -- revisit
-# once you have real induction data).
+# k_transcribe: *** PLACEHOLDER *** -- no specific measured rate for a
+# synthetic pheromone-responsive promoter in this construct; unchanged,
+# no data available to revise this specific value.
 k_transcribe       = 5e-4    # s^-1        -- PLACEHOLDER
-k_transcribe_basal = 1.3e-3  # nM/s        -- PLACEHOLDER (~1/30 of induced rate)
+
+# k_transcribe_basal: REVISED from wet-lab fold-change data (thesis
+# Table 8, construct T11/TAAR1, n=3, the only statistically supported
+# result: control=8.2, treated=12.1, fold=1.476). Solving
+# fold = (k_basal + k_transcribe*Ste12_total) / k_basal for k_basal
+# gives ~0.111 nM/s -- about 85x LARGER than the original literature-
+# based placeholder (1.3e-3 nM/s, which assumed a generic 20-50x
+# pheromone-promoter fold-induction that doesn't hold for this specific
+# LexA-operator synthetic promoter). Inherits this result's own
+# statistical weakness (single dose, uncorrected p=0.019 -- see
+# Open_Issues). Superior to the old placeholder because it's grounded
+# in this construct's actual behavior rather than a cross-species
+# generic assumption.
+k_transcribe_basal = 0.11    # nM/s        -- REVISED (Table 8, T11/TAAR1)
 
 # mRNA degradation: average yeast mRNA half-life ~20 min (genome-wide
 # range ~3-90+ min, no strong correlation with length/function).
@@ -207,7 +216,7 @@ t_end    = 6 * 3600     # 4 hours -- extended from Modules 1-3's 3 hours,
                          # slower processes (per your input)
 n_points = 5000
 
-L_values_nM = [0.5, 2.0, 5.0, 20.0, 100.0, 500.0]
+L_values_nM = [1e5]
 colors = plt.cm.viridis(np.linspace(0.15, 0.85, len(L_values_nM)))
 
 results_m4 = {}
@@ -263,7 +272,7 @@ ax1.set_ylim(bottom=0)
 
 # ── Panel B: All four species for [L] = 5 nM = K_D ───────────
 ax2 = fig.add_subplot(gs[0, 1])
-L_demo = 5.0
+L_demo = L_values_nM[0]
 sol_demo = results_m4[L_demo]
 t_min = sol_demo.t / 60
 ax2.plot(t_min, sol_demo.y[0], lw=2, color='steelblue',  label='Ste12*')
