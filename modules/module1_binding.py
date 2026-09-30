@@ -71,7 +71,7 @@ R_total = 50.0       # nM
 # SIMULATION SETTINGS
 # ──────────────────────────────────────────────────────────────
 t_start = 0
-t_end   = 3600       # 1 hour in seconds, typical biosensor assay window
+t_end   = 10800       # 3 hour in seconds
 n_points = 1000
 
 # Ligand concentrations to simulate [nM]
