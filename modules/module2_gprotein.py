@@ -65,10 +65,9 @@ k_reassoc = 33.333      # 1/(nM·s)  -- Kofahl and Klipp value repurposed FINAL
 
 # G_total  [nM]
 #   Total Gpa1/Gbeta/Ggamma pool.
-G_total = 200        # nM Gpa1 median abundance, Ho et al. 2018 unified dataset via SGD, 5057 molecules/cell, 42 fL conversion
+G_total = 200        # nM Gpa1 median abundance, Ho et al. 2018 unified dataset via SGD, 5057 molecules/cell, 42 fL conversion FINAL
 
 # k_RGS = 0  (Sst2 deleted in biosensor chassis)
-# Reference: Ehrenworth et al. 2017 Biochemistry; thesis Figure 6C
 k_RGS = 0.0
 
 # ──────────────────────────────────────────────────────────────
