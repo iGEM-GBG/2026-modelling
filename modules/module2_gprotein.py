@@ -176,7 +176,7 @@ for (L, sol), c in zip(results_m2.items(), colors):
 axA.set_xlabel("Time (min)")
 axA.set_ylabel("[G\u03b2\u03b3] (nM)")
 axA.set_title("Free G\u03b2\u03b3 over time\n(signal input to Module 3)")
-axA.legend(fontsize=9, loc='upper left')
+#axA.legend(fontsize=9, loc='upper left')
 axA.set_xlim(0, 10)   # zoomed: real kinetics settle within ~2 min (see design discussion)
 axA.set_ylim(bottom=0)
 figA.tight_layout()
