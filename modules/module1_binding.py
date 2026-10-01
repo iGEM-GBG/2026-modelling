@@ -6,7 +6,7 @@ Models the reversible binding reaction:
     R + L <--k_on--> RL
            <--k_off--
 
-System: HRH4 (human histamine H4 receptor) + Histamine
+System: TAAR1 (trace amine-associated receptor 1) + Tyramine
         expressed in S. cerevisiae biosensor chassis
 
 ODEs
@@ -32,40 +32,35 @@ import os
 # Module 2 (and later modules) do NOT import this file or re-run its
 # ODE. Instead, this script writes [RL](t) to a plain-text file per
 # ligand condition, which the next module reads and interpolates.
-# These files are regenerated every run and are gitignored -- only
-# this script (the source of truth) and the output figures are
-# version-controlled. Re-run this script after changing any
-# parameter above so Module 2's inputs don't go stale.
+# Re-run this script after changing any parameter so Module 2's
+# inputs don't go stale.
 INTERMEDIATE_DIR = "../intermediate"
+FIGURE_DIR = "../figures"
 os.makedirs(INTERMEDIATE_DIR, exist_ok=True)
+os.makedirs(FIGURE_DIR, exist_ok=True)
 
 # ──────────────────────────────────────────────────────────────
 # PARAMETERS
 # ──────────────────────────────────────────────────────────────
+k_on  = 1.22e-3      # 1/(nM*s) -- Tran, Chang & Snyder (1978)
+K_D   = 20            # nM -- Borowsky et al. (2001)
+k_off = K_D * k_on   # 1/s -- derived (K_D * k_on)
 
-#   Source: Tran, Chang & Snyder 1978
-k_on = 1.22e-3          # 1/(nM·s) FINAL
-
-# k_off [1/s]
-
-K_D   = 20          # nM  Borowsky et al. (2001) FINAL
-k_off = K_D * k_on   #  1/s  FINAL
-
-# R_total [nM]
-#   Receptor copy number in engineered yeast ~ 1,000–10,000 molecules/cell.
-#   Converted to nM assuming yeast cell volume ~ 42 fL (Ghaemmaghami 2003).
-#   1,000 molecules / (42e-15 L * 6.022e23) ~ 40 nM; we use 50 nM.
-R_total = 50.0       # nM Explicit upper bound on functionally available receptor FINAL
+# Explicit upper bound on functionally available receptor, not a
+# central estimate: total expressed receptor (~1,000 molecules/cell,
+# 42 fL conversion); fluorescence microscopy showed predominantly
+# ER/vacuolar retention, so true membrane-available receptor is very
+# likely lower by an unquantified factor.
+R_total = 50.0       # nM
 
 # ──────────────────────────────────────────────────────────────
 # SIMULATION SETTINGS
 # ──────────────────────────────────────────────────────────────
 t_start = 0
-t_end   = 10800       # 3 hour in seconds
+t_end   = 10800       # 3 hours
 n_points = 1000
 
-# Ligand concentrations to simulate [nM]
-L_values_nM = [1e5]
+L_values_nM = [1e5]   # 100 uM tyramine -- the actual wet-lab dose
 
 # ──────────────────────────────────────────────────────────────
 # ODE DEFINITION
@@ -120,108 +115,96 @@ for L in L_values_nM:
     np.savetxt(out_path, np.column_stack([sol.t, sol.y[0]]),
                header=header, fmt="%.6e")
 
-# Dose-response: steady-state [RL] across a dense L range
-L_range    = np.logspace(-1, 4, 400)   # 0.1 nM to 10,000 nM
+# Dose-response: steady-state [RL] across a dense L range (analytical;
+# independent of how many doses were actually simulated above)
+L_range     = np.logspace(-1, 6, 400)   # 0.1 nM to 1,000,000 nM
 RL_ss_curve = RL_steady_state(L_range, R_total, K_D)
-fractional  = RL_ss_curve / R_total    # fractional occupancy
+fractional  = RL_ss_curve / R_total
 
 # ──────────────────────────────────────────────────────────────
-# PLOTTING
+# PLOTTING -- each panel saved as its own PDF
 # ──────────────────────────────────────────────────────────────
-fig = plt.figure(figsize=(14, 10))
-gs  = gridspec.GridSpec(2, 2, hspace=0.4, wspace=0.35)
-
 colors = plt.cm.viridis(np.linspace(0.15, 0.85, len(L_values_nM)))
 
-# ── Panel A: [RL](t) time courses ────────────────────────────
-ax1 = fig.add_subplot(gs[0, 0])
+# ── A: [RL](t) time courses ──────────────────────────────────
+figA, axA = plt.subplots(figsize=(6.5, 5))
 for (L, sol), c in zip(results.items(), colors):
     RL_t  = sol.y[0]
     RL_ss = RL_steady_state(L, R_total, K_D)
-    label = f"[L] = {L} nM"
-    ax1.plot(sol.t / 60, RL_t, color=c, lw=2, label=label)
-    ax1.axhline(RL_ss, color=c, lw=1, ls='--', alpha=0.5)
+    axA.plot(sol.t / 60, RL_t, color=c, lw=2, label=f"[L] = {L:.0f} nM")
+    axA.axhline(RL_ss, color=c, lw=1, ls='--', alpha=0.5)
+axA.set_xlabel("Time (min)")
+axA.set_ylabel("[RL] (nM)")
+axA.set_title("Binding kinetics -- [RL](t)\n(dashed = analytical steady state)")
+axA.legend(fontsize=9, loc='upper left')
+axA.set_xlim(0, t_end / 60)
+axA.set_ylim(bottom=0)
+figA.tight_layout()
+figA.savefig(os.path.join(FIGURE_DIR, "module1_A_binding_timecourse.pdf"))
+plt.close(figA)
 
-ax1.set_xlabel("Time (min)")
-ax1.set_ylabel("[RL] (nM)")
-ax1.set_title("A.  Binding kinetics — [RL](t)\n(dashed = analytical steady state)")
-ax1.legend(fontsize=7, loc='upper left')
-ax1.set_xlim(0, t_end / 60)
-ax1.set_ylim(bottom=0)
-
-# ── Panel B: Fractional occupancy (dose-response) ─────────────
-ax2 = fig.add_subplot(gs[0, 1])
-ax2.semilogx(L_range, fractional, 'k', lw=2.5)
-ax2.axvline(K_D, color='crimson', ls='--', lw=1.5, label=f'$K_D$ = {K_D} nM')
-ax2.axhline(0.5,  color='crimson', ls=':',  lw=1.0)
-
-# Mark simulated L values
+# ── B: Fractional occupancy (dose-response) ──────────────────
+figB, axB = plt.subplots(figsize=(6.5, 5))
+axB.semilogx(L_range, fractional, 'k', lw=2.5)
+axB.axvline(K_D, color='crimson', ls='--', lw=1.5, label=f'$K_D$ = {K_D} nM')
+axB.axhline(0.5, color='crimson', ls=':', lw=1.0)
 for L, c in zip(L_values_nM, colors):
     occ = RL_steady_state(L, R_total, K_D) / R_total
-    ax2.scatter(L, occ, color=c, zorder=5, s=60)
+    axB.scatter(L, occ, color=c, zorder=5, s=70, label=f"simulated: [L]={L:.0f} nM")
+axB.set_xlabel("[L] (nM, log scale)")
+axB.set_ylabel("Fractional occupancy [RL] / R$_{total}$")
+axB.set_title("Dose-response (Hill-Langmuir, n = 1)")
+axB.legend(fontsize=9)
+axB.set_ylim(0, 1.05)
+figB.tight_layout()
+figB.savefig(os.path.join(FIGURE_DIR, "module1_B_dose_response.pdf"))
+plt.close(figB)
 
-ax2.set_xlabel("[L] (nM, log scale)")
-ax2.set_ylabel("Fractional occupancy [RL] / R$_{total}$")
-ax2.set_title("B.  Dose-response (Hill-Langmuir, n = 1)")
-ax2.legend(fontsize=9)
-ax2.set_ylim(0, 1.05)
-
-# ── Panel C: Linear regime detail (L << K_D) ──────────────────
-ax3 = fig.add_subplot(gs[1, 0])
+# ── C: Linear regime detail (L << K_D) ────────────────────────
+figC, axC = plt.subplots(figsize=(6.5, 5))
 L_linear = np.linspace(0, K_D * 2, 200)
 RL_linear = RL_steady_state(L_linear, R_total, K_D)
-linear_approx = R_total / K_D * L_linear   # [RL] ≈ R_total/K_D * L
-
-ax3.plot(L_linear, RL_linear,     'k',        lw=2,   label='Full model')
-ax3.plot(L_linear, linear_approx, 'steelblue', lw=1.5, ls='--',
+linear_approx = R_total / K_D * L_linear
+axC.plot(L_linear, RL_linear,     'k',         lw=2,   label='Full model')
+axC.plot(L_linear, linear_approx, 'steelblue', lw=1.5, ls='--',
          label='Linear approx. ($[L] \\ll K_D$)')
-ax3.axvline(K_D, color='crimson', ls='--', lw=1, label=f'$K_D$ = {K_D} nM')
-ax3.set_xlabel("[L] (nM)")
-ax3.set_ylabel("[RL] (nM)")
-ax3.set_title("C.  Linear detection regime\n(useful range for quantitative sensing)")
-ax3.legend(fontsize=8)
+axC.axvline(K_D, color='crimson', ls='--', lw=1, label=f'$K_D$ = {K_D} nM')
+axC.set_xlabel("[L] (nM)")
+axC.set_ylabel("[RL] (nM)")
+axC.set_title("Linear detection regime\n(useful range for quantitative sensing)")
+axC.legend(fontsize=9)
+figC.tight_layout()
+figC.savefig(os.path.join(FIGURE_DIR, "module1_C_linear_regime.pdf"))
+plt.close(figC)
 
-# ── Panel D: Time-to-equilibrium vs L ─────────────────────────
-ax4 = fig.add_subplot(gs[1, 1])
-# Theoretical equilibration time constant: tau = 1 / (k_on*L + k_off)
-L_tau = np.logspace(-1, 4, 300)
+# ── D: Equilibration time constant vs L ───────────────────────
+figD, axD = plt.subplots(figsize=(6.5, 5))
+L_tau = np.logspace(-1, 6, 300)
 tau   = 1.0 / (k_on * L_tau + k_off)
+axD.loglog(L_tau, tau / 60, 'darkorange', lw=2)
+axD.axvline(K_D, color='crimson', ls='--', lw=1.5, label=f'$K_D$ = {K_D} nM')
+for L, c in zip(L_values_nM, colors):
+    axD.scatter(L, 1.0/(k_on*L+k_off)/60, color=c, zorder=5, s=70,
+                label=f"simulated: [L]={L:.0f} nM")
+axD.set_xlabel("[L] (nM, log scale)")
+axD.set_ylabel("Time constant tau (min, log scale)")
+axD.set_title("Equilibration time constant tau\n(= 1 / (k$_{on}$[L] + k$_{off}$))")
+axD.legend(fontsize=9)
+figD.tight_layout()
+figD.savefig(os.path.join(FIGURE_DIR, "module1_D_equilibration_time.pdf"))
+plt.close(figD)
 
-ax4.loglog(L_tau, tau / 60, 'darkorange', lw=2)
-ax4.axvline(K_D, color='crimson', ls='--', lw=1.5, label=f'$K_D$ = {K_D} nM')
-ax4.set_xlabel("[L] (nM, log scale)")
-ax4.set_ylabel("Time constant τ (min, log scale)")
-ax4.set_title("D.  Equilibration time constant τ\n(= 1 / (k$_{{on}}$[L] + k$_{{off}}$))")
-ax4.legend(fontsize=9)
-
-# ── Main title ────────────────────────────────────────────────
-fig.suptitle(
-    "Module 1 — HRH4/Histamine Binding Kinetics\n"
-    f"K$_D$ = {K_D} nM (Lim et al. 2005)  |  "
-    f"k$_{{on}}$ = {k_on:.0e} nM⁻¹s⁻¹ [PLACEHOLDER]  |  "
-    f"R$_{{total}}$ = {R_total} nM [PLACEHOLDER]",
-    fontsize=11, y=1.01
-)
-
-plt.savefig("../figures/module1_binding.png",
-            dpi=150, bbox_inches='tight')
-plt.close()
-print("Figure saved.")
+print("Figures saved: module1_{A_binding_timecourse,B_dose_response,"
+      "C_linear_regime,D_equilibration_time}.pdf")
 
 # ──────────────────────────────────────────────────────────────
-# SUMMARY TABLE
+# STEADY-STATE SUMMARY
 # ──────────────────────────────────────────────────────────────
-print("\n── Steady-state summary ──────────────────────────────────")
-print(f"{'[L] (nM)':>12} {'[RL]_ss (nM)':>14} {'Occupancy (%)':>15} {'τ (s)':>8}")
+print("\n-- Steady-state summary --------------------------------------")
+print(f"{'[L] (nM)':>12} {'[RL]_ss (nM)':>14} {'Occupancy (%)':>15} {'tau (s)':>8}")
 print("-" * 55)
 for L in L_values_nM:
     RL_ss = RL_steady_state(L, R_total, K_D)
     occ   = 100 * RL_ss / R_total
-    tau   = 1.0 / (k_on * L + k_off)
-    print(f"{L:>12.1f} {RL_ss:>14.2f} {occ:>14.1f}% {tau:>8.1f}")
-
-print("\n── Parameter status ──────────────────────────────────────")
-print(f"  K_D      = {K_D} nM      <- PLACEHOLDER Literature (Lim et al. 2005, IUPHAR)")
-print(f"  k_on     = {k_on} nM⁻¹s⁻¹  <- PLACEHOLDER (typical GPCR range)")
-print(f"  k_off    = {k_off} s⁻¹    <- Derived (k_off = K_D * k_on)")
-print(f"  R_total  = {R_total} nM       <- PLACEHOLDER (replace with 26A1 data)")
+    tau_v = 1.0 / (k_on * L + k_off)
+    print(f"{L:>12.1f} {RL_ss:>14.2f} {occ:>14.1f}% {tau_v:>8.1f}")
