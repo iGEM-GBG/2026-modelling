@@ -31,55 +31,25 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import sys
 import os
-#sys.path.insert(0, '/home/claude')
 
 # ──────────────────────────────────────────────────────────────
 # PARAMETERS
 # ──────────────────────────────────────────────────────────────
-#
-# k_act  [1/(nM·s)]
-#   Rate of receptor-catalysed GDP->GTP exchange on Gpa1.
-#   Source: Yi, Kitano & Simon (2003) PNAS 100(19):10764-10769
-#   measured k_act ~ 1e-3 1/(molecule/cell * s) for native Ste2/Gpa1.
-#   Converted to nM units using yeast cell volume 42 fL
-#   (Jorgensen et al. 2002, Science 297:395): 1 molecule/cell ~ 40 nM
-#   k_act = 4e-4 1/(nM·s)  [literature, yeast native pathway]
-#   *** PLACEHOLDER for chimera variants, fit to 26A3/26A6 data ***
-#   Different Ga/Gpa1 chimeras will shift this value; it is the primary
-#   tunable parameter for chimera optimisation.
-k_act = 4e-4          # 1/(nM·s) FINAL
-
-# k_hyd  [1/s]
-#   Intrinsic GTPase rate of Gpa1 (Sst2-independent).
-#   Source: Yi, Kitano & Simon (2003) PNAS 100(19):10764-10769
-#   measured k_hyd = 0.004 1/s for yeast Gpa1.
-#   Note: Sst2 is DELETED (k_RGS = 0), so this is the only hydrolysis term.
-#   Literature value, reliable for Δsst2 chassis.
-k_hyd = 0.004         # 1/s   -- Yi et al. 2003 FINAL
-
-# k_reassoc  [1/(nM·s)]
-#   Rate of G_alpha,GDP + G_betagamma -> G_GDP heterotrimer reformation.
-#   Source: Yi, Kitano & Simon (2003) PNAS 100(19):10764-10769
-#   k_reassoc = 1e-3 1/(nM·s)
-k_reassoc = 33.333      # 1/(nM·s)  -- Kofahl and Klipp value repurposed FINAL
-
-# G_total  [nM]
-#   Total Gpa1/Gbeta/Ggamma pool.
-G_total = 200        # nM Gpa1 median abundance, Ho et al. 2018 unified dataset via SGD, 5057 molecules/cell, 42 fL conversion FINAL
-
-# k_RGS = 0  (Sst2 deleted in biosensor chassis)
-k_RGS = 0.0
+k_act     = 4e-4     # 1/(nM*s) -- Yi, Kitano & Simon (2003), native Ste2/Gpa1;
+                      # primary tunable parameter for chimera coupling
+k_hyd     = 0.004     # 1/s -- Yi et al. (2003)
+k_reassoc = 1e-3    # 1/(nM*s) -- Kofahl & Klipp (2004) model value
+G_total   = 200       # nM -- Gpa1 median abundance, Ho et al. 2018 unified
+                      # dataset via SGD (5057 molecules/cell, 42 fL conversion)
+k_RGS     = 0.0       # Sst2 deleted in biosensor chassis (Dsst2)
 
 # ──────────────────────────────────────────────────────────────
 # LOAD MODULE 1 OUTPUT (read from disk -- Module 1 must be run first)
 # ──────────────────────────────────────────────────────────────
-# Module 2 no longer re-implements Module 1's ODE. It reads the
-# [RL](t) text file that module1_binding.py wrote for each ligand
-# condition. This is the single source of truth for Module 1's
-# parameters/behaviour -- if you change something in Module 1,
-# re-run it before re-running Module 2.
 INTERMEDIATE_DIR = "../intermediate"
+FIGURE_DIR = "../figures"
 os.makedirs(INTERMEDIATE_DIR, exist_ok=True)
+os.makedirs(FIGURE_DIR, exist_ok=True)
 
 def load_module1_output(L_nM):
     """Load [RL](t) written by module1_binding.py for a given [L]."""
@@ -134,15 +104,30 @@ def gprotein_ode(t, y, k_act, k_hyd, k_reassoc, G_total, RL_interp):
 
     return [dG_aGTP_dt, dG_aGDP_dt, dGbg_dt]
 
+def dense_early_t_eval(t_start, t_end, dense_end=300, n_dense=3000, n_sparse=500):
+    """Time grid concentrated in [t_start, dense_end] (where the real
+    kinetics happen -- see design discussion: Module 2's own G-protein
+    activation is the rate-limiting step, settling over ~1-2 min, not
+    the much faster downstream MAPK relay). A uniform grid spread over
+    the full multi-hour window is too coarse near t=0 to resolve this;
+    this concatenates a dense early segment with a sparse late segment
+    that just confirms the long-term plateau.
+    """
+    t_dense = np.linspace(t_start, dense_end, n_dense)
+    t_sparse = np.linspace(dense_end, t_end, n_sparse)[1:]
+    return np.concatenate([t_dense, t_sparse])
+
 # ──────────────────────────────────────────────────────────────
 # SIMULATION
 # ──────────────────────────────────────────────────────────────
+# LSODA (not RK45): the Kofahl & Klipp-sourced rate constants make
+# this system numerically stiff (fast sub-processes alongside the
+# hours-long simulation window); RK45 stalls, LSODA auto-switches
+# to an implicit stiff method and solves it in milliseconds.
 t_start  = 0
 t_end    = 10800        # 3 hours
-n_points = 2000
 
-# Ligand concentrations matching Module 1
-L_values_nM = [1e5]
+L_values_nM = [1e5]     # matching Module 1 (100 uM tyramine, wet-lab dose)
 colors = plt.cm.viridis(np.linspace(0.15, 0.85, len(L_values_nM)))
 
 results_m2 = {}
@@ -153,7 +138,7 @@ for L in L_values_nM:
     RL_interp = interp1d(t_m1, RL_m1, kind='cubic', fill_value='extrapolate')
 
     # --- Run Module 2 ---
-    t_eval = np.linspace(t_start, t_end, n_points)
+    t_eval = dense_early_t_eval(t_start, t_end)
     sol = solve_ivp(
         fun    = gprotein_ode,
         t_span = (t_start, t_end),
@@ -178,69 +163,56 @@ for L in L_values_nM:
                np.column_stack([sol.t, sol.y[0], sol.y[1], sol.y[2]]),
                header=header, fmt="%.6e")
 
-# Amplification factor across L values
-# Amplif = k_act * [G_GDP] / k_off  (per-RL-molecule rate / dissociation rate)
-k_off   = 5e-3    # from Module 1
-L_range = np.array(L_values_nM)
-
-# ──────────────────────────────────────────────────────────────
-# PLOTTING
-# ──────────────────────────────────────────────────────────────
-fig = plt.figure(figsize=(14, 10))
-gs  = gridspec.GridSpec(2, 2, hspace=0.42, wspace=0.35)
-
-# ── Panel A: G_betagamma(t) — signal output ──────────────────
-ax1 = fig.add_subplot(gs[0, 0])
-for (L, sol), c in zip(results_m2.items(), colors):
-    Gbg = sol.y[2]
-    ax1.plot(sol.t / 60, Gbg, color=c, lw=2, label=f"[L] = {L} nM")
-ax1.set_xlabel("Time (min)")
-ax1.set_ylabel("[Gβγ] (nM)")
-ax1.set_title("A.  Free Gβγ over time\n(signal input to Module 3)")
-ax1.legend(fontsize=7, loc='upper left')
-ax1.set_xlim(0, t_end / 60)
-ax1.set_ylim(bottom=0)
-
-# ── Panel B: All three species for [L] = 5 nM = K_D ─────────
-ax2 = fig.add_subplot(gs[0, 1])
 L_demo = L_values_nM[0]
+
+# ──────────────────────────────────────────────────────────────
+# PLOTTING -- each panel saved as its own PDF
+# ──────────────────────────────────────────────────────────────
+
+# ── A: G_betagamma(t) -- signal output ───────────────────────
+figA, axA = plt.subplots(figsize=(6.5, 5))
+for (L, sol), c in zip(results_m2.items(), colors):
+    axA.plot(sol.t / 60, sol.y[2], color=c, lw=2, label=f"[L] = {L:.0f} nM")
+axA.set_xlabel("Time (min)")
+axA.set_ylabel("[G\u03b2\u03b3] (nM)")
+axA.set_title("Free G\u03b2\u03b3 over time\n(signal input to Module 3)")
+axA.legend(fontsize=9, loc='upper left')
+axA.set_xlim(0, 10)   # zoomed: real kinetics settle within ~2 min (see design discussion)
+axA.set_ylim(bottom=0)
+figA.tight_layout()
+figA.savefig(os.path.join(FIGURE_DIR, "module2_A_Gbg_timecourse.pdf"))
+plt.close(figA)
+
+# ── B: All three species at the simulated dose ───────────────
+figB, axB = plt.subplots(figsize=(6.5, 5))
 sol_demo = results_m2[L_demo]
 t_min = sol_demo.t / 60
-ax2.plot(t_min, sol_demo.y[0], lw=2, color='steelblue',  label='$G_{\\alpha,GTP}$')
-ax2.plot(t_min, sol_demo.y[1], lw=2, color='darkorange',  label='$G_{\\alpha,GDP}$')
-ax2.plot(t_min, sol_demo.y[2], lw=2, color='forestgreen', label='$G_{\\beta\\gamma}$')
+axB.plot(t_min, sol_demo.y[0], lw=2, color='steelblue',  label='$G_{\\alpha,GTP}$')
+axB.plot(t_min, sol_demo.y[1], lw=2, color='darkorange', label='$G_{\\alpha,GDP}$')
+axB.plot(t_min, sol_demo.y[2], lw=2, color='forestgreen', label='$G_{\\beta\\gamma}$')
 G_GDP_demo = G_total - sol_demo.y[0] - sol_demo.y[1] - sol_demo.y[2]
-ax2.plot(t_min, G_GDP_demo,    lw=2, color='crimson', ls='--', label='$G_{GDP}$ (conserved)')
-ax2.set_xlabel("Time (min)")
-ax2.set_ylabel("Concentration (nM)")
-ax2.set_title(f"B.  All G-protein species\n([L] = {L_demo} nM = $K_D$)")
-ax2.legend(fontsize=8)
-ax2.set_xlim(0, t_end / 60)
-ax2.set_ylim(bottom=0)
+axB.plot(t_min, G_GDP_demo, lw=2, color='crimson', ls='--', label='$G_{GDP}$ (conserved)')
+axB.set_xlabel("Time (min)")
+axB.set_ylabel("Concentration (nM)")
+axB.set_title(f"All G-protein species\n([L] = {L_demo:.0f} nM, wet-lab dose)")
+axB.legend(fontsize=9)
+axB.set_xlim(0, 10)   # zoomed: real kinetics settle within ~2 min (see design discussion)
+axB.set_ylim(bottom=0)
+figB.tight_layout()
+figB.savefig(os.path.join(FIGURE_DIR, "module2_B_all_species.pdf"))
+plt.close(figB)
 
-# ── Panel C: Steady-state Gbg vs L (dose-response) ───────────
-ax3 = fig.add_subplot(gs[1, 0])
-Gbg_ss = [results_m2[L].y[2][-1] for L in L_values_nM]
-ax3.semilogx(L_values_nM, Gbg_ss, 'o-', color='forestgreen', lw=2, ms=8)
-ax3.axvline(5.0, color='crimson', ls='--', lw=1.5, label='$K_D$ = 5 nM')
-ax3.set_xlabel("[L] (nM, log scale)")
-ax3.set_ylabel("[Gβγ]$_{ss}$ (nM)")
-ax3.set_title("C.  Steady-state [Gβγ] vs [L]\n(Module 2 dose-response)")
-ax3.legend(fontsize=9)
-ax3.set_ylim(bottom=0)
-
-# ── Panel D: k_act sensitivity — effect of chimera variants ──
-ax4 = fig.add_subplot(gs[1, 1])
-L_fixed = 5.0   # at K_D
-t_m1, RL_m1 = load_module1_output(L_fixed)
+# ── C: k_act sensitivity -- effect of chimera coupling strength ──
+figC, axC = plt.subplots(figsize=(6.5, 5))
+t_m1, RL_m1 = load_module1_output(L_demo)
 RL_interp_fixed = interp1d(t_m1, RL_m1, kind='cubic', fill_value='extrapolate')
-t_eval = np.linspace(t_start, t_end, n_points)
+t_eval = dense_early_t_eval(t_start, t_end)
 
 k_act_variants = {
-    '0.1× (weak chimera)':  k_act * 0.1,
-    '1× (baseline)':        k_act,
-    '5× (strong chimera)':  k_act * 5,
-    '20× (strong chimera)': k_act * 20,
+    '0.1x (weak chimera)':  k_act * 0.1,
+    '1x (baseline)':        k_act,
+    '5x (strong chimera)':  k_act * 5,
+    '20x (strong chimera)': k_act * 20,
 }
 variant_colors = ['#d62728', '#7f7f7f', '#2ca02c', '#1f77b4']
 
@@ -249,34 +221,28 @@ for (label, ka), c in zip(k_act_variants.items(), variant_colors):
         gprotein_ode, (t_start, t_end), [0.0, 0.0, 0.0],
         t_eval=t_eval,
         args=(ka, k_hyd, k_reassoc, G_total, RL_interp_fixed),
-        method='RK45', rtol=1e-8, atol=1e-10
+        method='LSODA', rtol=1e-8, atol=1e-10
     )
-    ax4.plot(sol_v.t / 60, sol_v.y[2], lw=2, color=c, label=label)
+    axC.plot(sol_v.t / 60, sol_v.y[2], lw=2, color=c, label=label)
 
-ax4.set_xlabel("Time (min)")
-ax4.set_ylabel("[Gβγ] (nM)")
-ax4.set_title(f"D.  Chimera sensitivity (k$_{{act}}$ variants)\n[L] = {L_fixed} nM = $K_D$")
-ax4.legend(fontsize=8)
-ax4.set_xlim(0, t_end / 60)
-ax4.set_ylim(bottom=0)
+axC.set_xlabel("Time (min)")
+axC.set_ylabel("[G\u03b2\u03b3] (nM)")
+axC.set_title(f"Chimera coupling sensitivity (k$_{{act}}$ variants)\n"
+              f"[L] = {L_demo:.0f} nM")
+axC.legend(fontsize=9)
+axC.set_xlim(0, 10)   # zoomed: real kinetics settle within ~2 min (see design discussion)
+axC.set_ylim(bottom=0)
+figC.tight_layout()
+figC.savefig(os.path.join(FIGURE_DIR, "module2_C_kact_sensitivity.pdf"))
+plt.close(figC)
 
-fig.suptitle(
-    "Module 2 — G-protein Activation Cycle (Δsst2 chassis)\n"
-    f"k$_{{act}}$ = {k_act:.0e} nM⁻¹s⁻¹ [PLACEHOLDER: fit to 26A3/A6]  |  "
-    f"k$_{{hyd}}$ = {k_hyd} s⁻¹ (Yi et al. 2003)  |  "
-    f"G$_{{total}}$ = {G_total} nM [PLACEHOLDER]",
-    fontsize=10, y=1.01
-)
-
-plt.savefig("../figures/module2_gprotein.png",
-            dpi=150, bbox_inches='tight')
-plt.close()
-print("Figure saved.")
+print("Figures saved: module2_{A_Gbg_timecourse,B_all_species,"
+      "C_kact_sensitivity}.pdf")
 
 # ──────────────────────────────────────────────────────────────
-# SUMMARY TABLE
+# STEADY-STATE SUMMARY
 # ──────────────────────────────────────────────────────────────
-print("\n── Steady-state summary ─────────────────────────────────────────")
+print("\n-- Steady-state summary ----------------------------------------")
 print(f"{'[L] (nM)':>10} {'[Gbg]_ss (nM)':>15} {'% of G_total':>14} "
       f"{'[GaGTP]_ss':>12} {'[GaGDP]_ss':>12}")
 print("-" * 67)
@@ -286,12 +252,3 @@ for L, sol in results_m2.items():
     GaGDP = sol.y[1][-1]
     pct   = 100 * Gbg / G_total
     print(f"{L:>10.1f} {Gbg:>15.3f} {pct:>13.1f}% {GaGTP:>12.3f} {GaGDP:>12.3f}")
-
-print("\n── Parameter status ──────────────────────────────────────────────")
-print(f"  k_act     = {k_act:.0e} nM⁻¹s⁻¹  ← PLACEHOLDER (Yi et al. 2003 native; "
-      "fit to 26A3/A6 for chimeras)")
-print(f"  k_hyd     = {k_hyd} s⁻¹      ← PLACEHOLDER, Yi et al. 2003 PNAS")
-print(f"  k_reassoc = {k_reassoc:.0e} nM⁻¹s⁻¹  ← PLACEHOLDER, Yi et al. 2003 PNAS")
-print(f"  G_total   = {G_total} nM        ← PLACEHOLDER (Ghaemmaghami 2003; "
-      "replace with 26A1 quantification)")
-print(f"  k_RGS     = {k_RGS}            ← Zero (Δsst2 chassis; Ehrenworth 2017)")

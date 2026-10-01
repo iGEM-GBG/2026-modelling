@@ -3,7 +3,7 @@ Module 3: MAPK Cascade (Ste20 -> Ste11 -> Ste7 -> Fus3)
 ==========================================================
 Models the four-tier phosphorylation relay downstream of the G-protein
 cycle, using a v1 MASS-ACTION approximation (no saturation kinetics
-yet -- see "MODELING STATUS" below):
+yet -- see v2 for the Goldbeter-Koshland saturating version):
 
     G_betagamma + Ste20   --k_activate_Ste20-->  Ste20*
     Ste20*      + Ste11   --k_activate_Ste11-->  Ste11*
@@ -13,8 +13,7 @@ yet -- see "MODELING STATUS" below):
     Ste20* --k_deactivate_Ste20--> Ste20   (etc. for each tier)
 
 Each tier is a 2-state lumped switch (active / inactive), NOT a
-3-state distributive dual-phosphorylation model, and NOT a
-Goldbeter-Koshland saturating (Michaelis-Menten) switch.
+3-state distributive dual-phosphorylation model.
 
 Conservation laws (one per tier):
     Ste20_total = Ste20 + Ste20*
@@ -28,26 +27,15 @@ Output to Module 4: [Fus3*](t)  -->  drives Ste12 activation
 
 Chain: Module 2 [Gbetagamma](t) --> text file --> interp1d --> input here
 
-MODELING STATUS (read before trusting the dynamics)
-----------------------------------------------------
-* v1 = mass action. This deliberately OMITS the zero-order
-  ultrasensitivity that motivated using Goldbeter-Koshland kinetics
-  in the first place (see design discussion). This cascade will
-  behave as a graded amplifier, not a switch, until saturating
-  (Michaelis-Menten) terms are added in v2.
+MODELING STATUS
+----------------
 * Ste5 scaffold is NOT modeled explicitly (folded into rate constants).
+  Kofahl & Klipp's own rate constants (below) were fitted inside their
+  scaffold-complex model; reusing them in this lumped bimolecular form
+  is an anchor, not a structural match -- treat absolute dynamics with
+  that in mind.
 * Msg5/Ptp2/Ptp3 phosphatase feedback on Fus3 is NOT modeled --
   k_deactivate_Fus3 is a fixed parameter, not induced by Module 4.
-* All 8 rate constants below are PLACEHOLDERS. I could not retrieve
-  Kofahl & Klipp (2004)'s fitted parameter table through web search
-  (it's in the paper's PDF/supplementary SBML, not indexed as
-  searchable text) -- these are order-of-magnitude estimates anchored
-  to the *observed pathway activation timescale* instead (see each
-  parameter's comment). Before trusting quantitative predictions,
-  replace these with values transcribed directly from:
-    - Kofahl B, Klipp E (2004) Yeast 21:831-850, or its SBML encoding
-      BIOMD0000000032 (https://www.ebi.ac.uk/biomodels/BIOMD0000000032)
-    - or your own wet-lab timecourse data.
 
 Authors : iGEM team Gothenburg
 Date    : 2026
@@ -63,10 +51,10 @@ import os
 # ──────────────────────────────────────────────────────────────
 # INTERMEDIATE I/O
 # ──────────────────────────────────────────────────────────────
-# Reads Module 2's saved [Gbg](t) files; does NOT import or
-# re-implement Modules 1/2. Writes its own output files for Module 4.
 INTERMEDIATE_DIR = "../intermediate"
+FIGURE_DIR = "../figures"
 os.makedirs(INTERMEDIATE_DIR, exist_ok=True)
+os.makedirs(FIGURE_DIR, exist_ok=True)
 
 def load_module2_output(L_nM):
     """Load [Gbg](t) written by module2_gprotein.py for a given [L]."""
@@ -83,62 +71,31 @@ def load_module2_output(L_nM):
 # ──────────────────────────────────────────────────────────────
 # PARAMETERS
 # ──────────────────────────────────────────────────────────────
-#
-# --- Total pool sizes -------------------------------------------------
-# Source: SGD (Saccharomyces Genome Database) median protein abundance,
-# https://www.yeastgenome.org -- these are the unified/normalized
-# values (Ho, Baryshnikova & Brown 2018, Cell Syst 6(2):192-205),
-# which aggregate ~20 studies including Ghaemmaghami et al. (2003)
-# Nature 425:737 (the same primary dataset Modules 1-2 cite for
-# R_total/G_total). Converted molecules/cell -> nM using the same
-# 42 fL yeast cell volume assumption as Modules 1-2:
-#   nM = molecules_per_cell * 1e9 / (6.022e23 * 42e-15)
-#      = molecules_per_cell * 0.03954
-#
-# Ste20: median abundance 3869 +/- 1268 molecules/cell (SGD)
-#   3869 * 0.03954 ~ 153.0 nM
-Ste20_total = 153.0   # nM  SGD median abundance, FINAL
+# Total pool sizes -- SGD median protein abundance (Ho, Baryshnikova &
+# Brown 2018, Cell Syst 6(2):192-205), converted molecules/cell -> nM
+# at 42 fL cell volume (nM = molecules_per_cell * 0.03954).
+Ste20_total = 153.0   # nM -- 3869 molecules/cell
+Ste11_total = 60.6    # nM -- 1533 molecules/cell
+Ste7_total  = 58.0    # nM -- 1466 molecules/cell
+Fus3_total  = 189.8   # nM -- 4800 molecules/cell
 
-# Ste11: median abundance 1533 +/- 425 molecules/cell (SGD)
-#   1533 * 0.03954 ~ 60.6 nM
-Ste11_total = 60.6    # nM  SGD median abundance, FINAL
+# Rate constants -- Kofahl & Klipp (2004) Yeast 21:831-850, Table 2
+# model values, converted min^-1 -> s^-1 (divide by 60).
+k_activate_Ste20   = 0.083   # nM^-1 s^-1
+k_deactivate_Ste20 = 0.017   # s^-1
 
-# Ste7: median abundance 1466 +/- 778 molecules/cell (SGD)
-#   1466 * 0.03954 ~ 58.0 nM
-Ste7_total = 58.0     # nM  SGD median abundance, FINAL
+k_activate_Ste11   = 0.167   # nM^-1 s^-1
+k_deactivate_Ste11 = 0.083   # s^-1
 
-# Fus3: median abundance 4800 +/- 1651 molecules/cell (SGD)
-#   4800 * 0.03954 ~ 189.8 nM
-Fus3_total = 189.8    # nM  SGD median abundance, FINAL
+k_activate_Ste7    = 0.783   # nM^-1 s^-1
+k_deactivate_Ste7  = 0.083   # s^-1
 
-# --- Rate constants ----------------------------------------------------
-# *** ALL EIGHT PLACEHOLDERS -- see MODELING STATUS docstring above ***
-# Order-of-magnitude anchor: reported Fus3 phosphorylation reaches
-# near-peak within roughly 15-60 min of pheromone stimulation
-# (van Drogen, Stucke, Jorritsma & Peter (2001) Nat Cell Biol
-# 3:1051-1059; Hilioti et al. (2008) Curr Biol 18:1700-1706 reports an
-# initial activation peak within 60 min). k_activate values are scaled
-# so each tier's activation rate (k_activate * typical upstream conc.)
-# is of the same order as its deactivation rate, magnitude-matched to
-# Module 2's k_act (4e-4 nM^-1 s^-1) and k_hyd (4e-3 s^-1) for
-# consistency with the rest of the pipeline.
-# TODO: replace with Kofahl & Klipp (2004) / BIOMD0000000032 values,
-# or fitted wet-lab timecourse data, before trusting these numbers.
-k_activate_Ste20   = 0.083   # nM^-1 s^-1  -- Kofahl and Klipp model value FINAL
-k_deactivate_Ste20  = 0.017   # s^-1        -- Kofahl and Klipp model value FINAL
-
-k_activate_Ste11   = 0.167   # nM^-1 s^-1  -- Kofahl and Klipp model value FINAL
-k_deactivate_Ste11  = 0.083   # s^-1        -- Kofahl and Klipp model value FINAL
-
-k_activate_Ste7    = 0.783   # nM^-1 s^-1  -- Kofahl and Klipp model value FINAL
-k_deactivate_Ste7   = 0.083   # s^-1        -- Kofahl and Klipp model value FINAL
-
-k_activate_Fus3    = 5.75   # nM^-1 s^-1  -- Kofahl and Klipp model value FINAL
+k_activate_Fus3    = 5.75    # nM^-1 s^-1
 # k_deactivate_Fus3 lumps Msg5 + Ptp2/Ptp3 phosphatase activity into a
-# single fixed rate (no transcriptional feedback -- see docstring).
-# Named phosphatases: Doi et al. (1994) EMBO J 13:61-70 (Msg5);
-# Zhan, Deschenes & Guan (1997) Genes Dev 11:1690-1702 (Ptp2/Ptp3).
-k_deactivate_Fus3   = 0.833   # s^-1        -- Kofahl and Klipp model value FINAL
+# single fixed rate (no transcriptional feedback). Named phosphatases:
+# Doi et al. (1994) EMBO J 13:61-70 (Msg5); Zhan, Deschenes & Guan
+# (1997) Genes Dev 11:1690-1702 (Ptp2/Ptp3).
+k_deactivate_Fus3  = 0.833   # s^-1
 
 # ──────────────────────────────────────────────────────────────
 # ODE DEFINITION
@@ -168,13 +125,24 @@ def mapk_ode(t, y, k_act20, k_deact20, k_act11, k_deact11,
 
     return [dSte20a_dt, dSte11a_dt, dSte7a_dt, dFus3a_dt]
 
+def dense_early_t_eval(t_start, t_end, dense_end=300, n_dense=3000, n_sparse=500):
+    """Time grid concentrated in [t_start, dense_end] (where the real
+    kinetics happen -- see design discussion: Module 2's own G-protein
+    activation is the rate-limiting step, settling over ~1-2 min, not
+    the much faster downstream MAPK relay). A uniform grid spread over
+    the full multi-hour window is too coarse near t=0 to resolve this;
+    this concatenates a dense early segment with a sparse late segment
+    that just confirms the long-term plateau.
+    """
+    t_dense = np.linspace(t_start, dense_end, n_dense)
+    t_sparse = np.linspace(dense_end, t_end, n_sparse)[1:]
+    return np.concatenate([t_dense, t_sparse])
+
 # ──────────────────────────────────────────────────────────────
 # SIMULATION
 # ──────────────────────────────────────────────────────────────
 t_start  = 0
 t_end    = 10800        # 3 hours, matching Modules 1-2
-n_points = 5000         # higher resolution than Module 2 (2000);
-                        # downstream kinetics may resolve faster dynamics
 
 # Ligand concentrations matching Modules 1-2
 L_values_nM = [1e5]
@@ -190,7 +158,7 @@ for L in L_values_nM:
     Gbg_interp = interp1d(t_m2, Gbg_m2, kind='cubic', fill_value='extrapolate')
 
     # --- Run Module 3 ---
-    t_eval = np.linspace(t_start, t_end, n_points)
+    t_eval = dense_early_t_eval(t_start, t_end)
     sol = solve_ivp(
         fun    = mapk_ode,
         t_span = (t_start, t_end),
@@ -222,63 +190,55 @@ for L in L_values_nM:
                np.column_stack([sol.t, sol.y[0], sol.y[1], sol.y[2], sol.y[3]]),
                header=header, fmt="%.6e")
 
-# ──────────────────────────────────────────────────────────────
-# PLOTTING
-# ──────────────────────────────────────────────────────────────
-fig = plt.figure(figsize=(14, 10))
-gs  = gridspec.GridSpec(2, 2, hspace=0.42, wspace=0.35)
-
-# ── Panel A: Fus3*(t) -- signal output to Module 4 ───────────
-ax1 = fig.add_subplot(gs[0, 0])
-for (L, sol), c in zip(results_m3.items(), colors):
-    Fus3a = sol.y[3]
-    ax1.plot(sol.t / 60, Fus3a, color=c, lw=2, label=f"[L] = {L} nM")
-ax1.set_xlabel("Time (min)")
-ax1.set_ylabel("[Fus3*] (nM)")
-ax1.set_title("A.  Active Fus3 over time\n(signal input to Module 4)")
-ax1.legend(fontsize=7, loc='upper left')
-ax1.set_xlim(0, t_end / 60)
-ax1.set_ylim(bottom=0)
-
-# ── Panel B: All four tiers for [L] = 5 nM = K_D ─────────────
-ax2 = fig.add_subplot(gs[0, 1])
 L_demo = L_values_nM[0]
+
+# ──────────────────────────────────────────────────────────────
+# PLOTTING -- each panel saved as its own PDF
+# ──────────────────────────────────────────────────────────────
+
+# ── A: Fus3*(t) -- signal output to Module 4 ─────────────────
+figA, axA = plt.subplots(figsize=(6.5, 5))
+for (L, sol), c in zip(results_m3.items(), colors):
+    axA.plot(sol.t / 60, sol.y[3], color=c, lw=2, label=f"[L] = {L:.0f} nM")
+axA.set_xlabel("Time (min)")
+axA.set_ylabel("[Fus3*] (nM)")
+axA.set_title("Active Fus3 over time\n(signal input to Module 4)")
+axA.legend(fontsize=9, loc='upper left')
+axA.set_xlim(0, 10)   # zoomed: real kinetics settle within ~2 min (see design discussion)
+axA.set_ylim(bottom=0)
+figA.tight_layout()
+figA.savefig(os.path.join(FIGURE_DIR, "module3_A_Fus3_timecourse.pdf"))
+plt.close(figA)
+
+# ── B: All four tiers at the simulated dose ───────────────────
+figB, axB = plt.subplots(figsize=(6.5, 5))
 sol_demo = results_m3[L_demo]
 t_min = sol_demo.t / 60
-ax2.plot(t_min, sol_demo.y[0], lw=2, color='steelblue',  label='Ste20*')
-ax2.plot(t_min, sol_demo.y[1], lw=2, color='darkorange', label='Ste11*')
-ax2.plot(t_min, sol_demo.y[2], lw=2, color='forestgreen', label='Ste7*')
-ax2.plot(t_min, sol_demo.y[3], lw=2, color='crimson',     label='Fus3*')
-ax2.set_xlabel("Time (min)")
-ax2.set_ylabel("Active concentration (nM)")
-ax2.set_title(f"B.  All four tiers\n([L] = {L_demo} nM = $K_D$)")
-ax2.legend(fontsize=8)
-ax2.set_xlim(0, t_end / 60)
-ax2.set_ylim(bottom=0)
+axB.plot(t_min, sol_demo.y[0], lw=2, color='steelblue',  label='Ste20*')
+axB.plot(t_min, sol_demo.y[1], lw=2, color='darkorange', label='Ste11*')
+axB.plot(t_min, sol_demo.y[2], lw=2, color='forestgreen', label='Ste7*')
+axB.plot(t_min, sol_demo.y[3], lw=2, color='crimson',     label='Fus3*')
+axB.set_xlabel("Time (min)")
+axB.set_ylabel("Active concentration (nM)")
+axB.set_title(f"All four tiers\n([L] = {L_demo:.0f} nM, wet-lab dose)")
+axB.legend(fontsize=9)
+axB.set_xlim(0, 10)   # zoomed: real kinetics settle within ~2 min (see design discussion)
+axB.set_ylim(bottom=0)
+figB.tight_layout()
+figB.savefig(os.path.join(FIGURE_DIR, "module3_B_all_tiers.pdf"))
+plt.close(figB)
 
-# ── Panel C: Steady-state Fus3* vs L (dose-response) ─────────
-ax3 = fig.add_subplot(gs[1, 0])
-Fus3_ss = [results_m3[L].y[3][-1] for L in L_values_nM]
-ax3.semilogx(L_values_nM, Fus3_ss, 'o-', color='crimson', lw=2, ms=8)
-ax3.axvline(5.0, color='steelblue', ls='--', lw=1.5, label='$K_D$ = 5 nM')
-ax3.set_xlabel("[L] (nM, log scale)")
-ax3.set_ylabel("[Fus3*]$_{ss}$ (nM)")
-ax3.set_title("C.  Steady-state [Fus3*] vs [L]\n(Module 3 dose-response)")
-ax3.legend(fontsize=9)
-ax3.set_ylim(bottom=0)
-
-# ── Panel D: k_activate_Ste11 sensitivity ─────────────────────
-ax4 = fig.add_subplot(gs[1, 1])
-L_fixed = 5.0   # at K_D
-t_m2, Gbg_m2 = load_module2_output(L_fixed)
+# ── C: k_activate_Ste11 sensitivity ───────────────────────────
+figC, axC = plt.subplots(figsize=(6.5, 5))
+t_m2, Gbg_m2 = load_module2_output(L_demo)
 Gbg_interp_fixed = interp1d(t_m2, Gbg_m2, kind='cubic', fill_value='extrapolate')
-t_eval = np.linspace(t_start, t_end, n_points)
+t_eval = dense_early_t_eval(t_start, t_end)
 
 k_variants = {
-    '0.1x (slow relay)':   k_activate_Ste11 * 0.1,
-    '1x (baseline)':       k_activate_Ste11,
-    '5x (fast relay)':     k_activate_Ste11 * 5,
-    '20x (fast relay)':    k_activate_Ste11 * 20,
+    '0.1x (slow relay)':  k_activate_Ste11 * 0.1,
+    '1x (baseline)':      k_activate_Ste11,
+    '5x (fast relay)':    k_activate_Ste11 * 5,
+    '20x (fast relay)':   k_activate_Ste11 * 20,
 }
 variant_colors = ['#d62728', '#7f7f7f', '#2ca02c', '#1f77b4']
 
@@ -291,33 +251,27 @@ for (label, k11), c in zip(k_variants.items(), variant_colors):
               k_activate_Fus3, k_deactivate_Fus3,
               Ste20_total, Ste11_total, Ste7_total, Fus3_total,
               Gbg_interp_fixed),
-        method='RK45', rtol=1e-8, atol=1e-10
+        method='LSODA', rtol=1e-8, atol=1e-10
     )
-    ax4.plot(sol_v.t / 60, sol_v.y[3], lw=2, color=c, label=label)
+    axC.plot(sol_v.t / 60, sol_v.y[3], lw=2, color=c, label=label)
 
-ax4.set_xlabel("Time (min)")
-ax4.set_ylabel("[Fus3*] (nM)")
-ax4.set_title("D.  k$_{activate,Ste11}$ sensitivity\n"
-              f"[L] = {L_fixed} nM = $K_D$")
-ax4.legend(fontsize=8)
-ax4.set_xlim(0, t_end / 60)
-ax4.set_ylim(bottom=0)
+axC.set_xlabel("Time (min)")
+axC.set_ylabel("[Fus3*] (nM)")
+axC.set_title(f"k$_{{activate,Ste11}}$ sensitivity\n[L] = {L_demo:.0f} nM")
+axC.legend(fontsize=9)
+axC.set_xlim(0, 10)   # zoomed: real kinetics settle within ~2 min (see design discussion)
+axC.set_ylim(bottom=0)
+figC.tight_layout()
+figC.savefig(os.path.join(FIGURE_DIR, "module3_C_kactivate_sensitivity.pdf"))
+plt.close(figC)
 
-fig.suptitle(
-    "Module 3 -- MAPK Cascade (mass-action v1, explicit Ste20, no Msg5 feedback)\n"
-    f"Ste20/Ste11/Ste7/Fus3 totals from SGD median abundance [PLACEHOLDER]  |  "
-    "rate constants: order-of-magnitude PLACEHOLDER (see script header)",
-    fontsize=10, y=1.01
-)
-
-plt.savefig("../figures/module3_mapk.png", dpi=150, bbox_inches='tight')
-plt.close()
-print("Figure saved.")
+print("Figures saved: module3_{A_Fus3_timecourse,B_all_tiers,"
+      "C_kactivate_sensitivity}.pdf")
 
 # ──────────────────────────────────────────────────────────────
-# SUMMARY TABLE
+# STEADY-STATE SUMMARY
 # ──────────────────────────────────────────────────────────────
-print("\n── Steady-state summary ─────────────────────────────────────────")
+print("\n-- Steady-state summary ----------------------------------------")
 print(f"{'[L] (nM)':>10} {'[Ste20*]_ss':>12} {'[Ste11*]_ss':>12} "
       f"{'[Ste7*]_ss':>12} {'[Fus3*]_ss':>12} {'% of Fus3_tot':>14}")
 print("-" * 78)
@@ -328,13 +282,3 @@ for L, sol in results_m3.items():
     f3  = sol.y[3][-1]
     pct = 100 * f3 / Fus3_total
     print(f"{L:>10.1f} {s20:>12.3f} {s11:>12.3f} {s7:>12.3f} {f3:>12.3f} {pct:>13.1f}%")
-
-print("\n── Parameter status ──────────────────────────────────────────────")
-print(f"  Ste20_total = {Ste20_total} nM  <- PLACEHOLDER (SGD median abundance)")
-print(f"  Ste11_total = {Ste11_total} nM  <- PLACEHOLDER (SGD median abundance)")
-print(f"  Ste7_total  = {Ste7_total} nM  <- PLACEHOLDER (SGD median abundance)")
-print(f"  Fus3_total  = {Fus3_total} nM  <- PLACEHOLDER (SGD median abundance)")
-print("  8x rate constants          <- PLACEHOLDER, order-of-magnitude only")
-print("      (timescale-anchored to van Drogen et al. 2001 / Hilioti et al. 2008;")
-print("       refine against Kofahl & Klipp 2004 / BIOMD0000000032 or wet-lab data)")
-print("  k_deactivate_Fus3          <- fixed constant, NO Msg5 transcriptional feedback")
