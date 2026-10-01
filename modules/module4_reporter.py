@@ -18,12 +18,9 @@ biosensor, producing the actual measurable signal.
 Mechanism note (Ste12 de-repression): in the unstimulated cell, Ste12 is
 bound and inhibited by Dig1p/Dig2p. Fus3* (and Kss1*) phosphorylate
 Dig1p/Dig2p, which releases them from Ste12p, relieving repression --
-source: SGD STE12 locus page (yeastgenome.org/locus/S000001126),
-"Dig1p and Dig2p directly inhibit the transcriptional activity of
-Ste12p... the inhibitory functions of Dig1p and Dig2p are relieved by
-phosphorylation through the mating-specific MAPKs Fus3p and Kss1p."
+source: SGD STE12 locus page (yeastgenome.org/locus/S000001126).
 
-Conservation law (Ste12 only -- see MODELING STATUS):
+Conservation law (Ste12 only):
     Ste12_total = Ste12 + Ste12*
 
 State vector: y = [Ste12_active, mRNA, Reporter_immature, Reporter_mature]
@@ -33,39 +30,23 @@ No downstream module; this is the end of the pipeline.
 
 Chain: Module 3 [Fus3*](t) --> text file --> interp1d --> input here
 
-MODELING STATUS (read before trusting the dynamics)
-----------------------------------------------------
+MODELING STATUS
+----------------
 * v1 = linear/mass-action promoter response (Ste12* enters the
-  transcription term linearly), NOT a Hill function. You noted
-  multiple PREs on the reporter promoter would argue for cooperative
-  (Hill-type) kinetics -- that's deferred to v2, same as Module 3's
-  planned move from mass action to saturating kinetics.
+  transcription term linearly), NOT a Hill function -- see v2.
 * mRNA and both protein pools have NO conservation law (unlike every
   earlier module) -- transcription/translation/degradation are
-  birth-death processes bounded only by upstream signal, not switches
-  between two forms of a fixed pool.
+  birth-death processes bounded only by upstream signal.
 * Basal (leaky) transcription is included. Initial conditions are set
   to the analytical basal steady state (Ste12* = 0, only leaky
-  transcription active) rather than zero, since a real cell has been
-  sitting at that basal state long before ligand exposure. NOTE: this
-  closed-form basal steady state is only valid because the promoter
-  response is linear (v1). If Hill kinetics are added in v2, replace
-  this with a numerical pre-equilibration run instead.
+  transcription active) rather than zero.
 * Immature reporter protein has no independent degradation channel --
-  it only ever matures (by your choice).
+  it only ever matures.
 * Reporter (mature protein) degradation assumes a STABLE, non-degron
-  reporter (7 h half-life, Mateus & Avery 2000 -- see parameters).
-  This has a real consequence, not just a caveat: with a reporter this
-  stable, [Reporter_mature] will NOT plateau within a few hours -- it
-  keeps climbing. This is exactly why Mateus & Avery built a
-  destabilized GFP in the first place ("[GFP's] stability makes it
-  unsuitable for monitoring dynamic changes in gene expression").
-  If/when you decide on reporter stability, swap k_degrade_mature.
-* All rate constants for Ste12 activation/deactivation, transcription
-  (basal and induced), and translation are PLACEHOLDERS -- order of
-  magnitude only. See each parameter's comment for what little
-  grounding exists; most don't have a clean literature anchor and are
-  flagged as such rather than dressed up with false precision.
+  reporter (7 h half-life, Mateus & Avery 2000). With a reporter this
+  stable, [Reporter_mature] will NOT plateau within the simulated
+  window -- it keeps climbing. Swap k_degrade_mature if a degron tag
+  is added.
 
 Authors : iGEM team Gothenburg
 Date    : 2026
@@ -82,7 +63,9 @@ import os
 # INTERMEDIATE I/O
 # ──────────────────────────────────────────────────────────────
 INTERMEDIATE_DIR = "../intermediate"
+FIGURE_DIR = "../figures"
 os.makedirs(INTERMEDIATE_DIR, exist_ok=True)
+os.makedirs(FIGURE_DIR, exist_ok=True)
 
 def load_module3_output(L_nM):
     """Load [Fus3*](t) written by module3_mapk.py for a given [L]."""
@@ -98,78 +81,50 @@ def load_module3_output(L_nM):
 # ──────────────────────────────────────────────────────────────
 # PARAMETERS
 # ──────────────────────────────────────────────────────────────
-#
-# --- Ste12 pool and switch kinetics ------------------------------------
-# Ste12: median abundance 2668 +/- 678 molecules/cell (SGD unified
-# dataset, same method/conversion as Module 3's totals).
-#   2668 * 0.03954 ~ 105.5 nM
-Ste12_total = 105.5   # nM  -- FINAL (SGD median abundance)
+# Ste12 pool: SGD median abundance (Ho et al. 2018 unified dataset),
+# same method/conversion as Module 3's totals (2668 molecules/cell).
+Ste12_total = 105.5   # nM
 
-# *** PLACEHOLDERS, no clean literature anchor for Dig1/2 release kinetics ***
-# magnitude-matched to Module 3's rate constants for pipeline consistency.
-k_activate_Ste12   = 0.3   # nM^-1 s^-1  -- Kofahl and Klipp model value FINAL
-k_deactivate_Ste12 = 0.167   # s^-1        -- Kofahl and Klipp model value FINAL
+# Ste12 switch kinetics -- Kofahl & Klipp (2004) Table 2 model values
+# (k34, k35), converted min^-1 -> s^-1.
+k_activate_Ste12   = 0.3     # nM^-1 s^-1
+k_deactivate_Ste12 = 0.167   # s^-1
 
-# --- Transcription -------------------------------------------------------
-# k_transcribe: *** PLACEHOLDER *** -- no specific measured rate for a
-# synthetic pheromone-responsive promoter in this construct; unchanged,
-# no data available to revise this specific value.
-k_transcribe       = 5e-4    # s^-1        -- PLACEHOLDER
+# Transcription: no specific measured rate exists for this synthetic
+# LexA-operator promoter; unchanged from the original order-of-
+# magnitude placeholder.
+k_transcribe = 5e-4   # s^-1
 
-# k_transcribe_basal: REVISED from wet-lab fold-change data (thesis
+# k_transcribe_basal: revised from wet-lab fold-change data (thesis
 # Table 8, construct T11/TAAR1, n=3, the only statistically supported
 # result: control=8.2, treated=12.1, fold=1.476). Solving
 # fold = (k_basal + k_transcribe*Ste12_total) / k_basal for k_basal
-# gives ~0.111 nM/s -- about 85x LARGER than the original literature-
+# gives ~0.111 nM/s -- about 85x larger than the original literature-
 # based placeholder (1.3e-3 nM/s, which assumed a generic 20-50x
-# pheromone-promoter fold-induction that doesn't hold for this specific
-# LexA-operator synthetic promoter). Inherits this result's own
-# statistical weakness (single dose, uncorrected p=0.019 -- see
-# Open_Issues). Superior to the old placeholder because it's grounded
-# in this construct's actual behavior rather than a cross-species
-# generic assumption.
-k_transcribe_basal = 0.11    # nM/s        -- REVISED (Table 8, T11/TAAR1)
+# pheromone-promoter fold-induction that doesn't hold for this
+# specific LexA-operator synthetic promoter). Inherits this result's
+# own statistical weakness (single dose, uncorrected p=0.019).
+k_transcribe_basal = 0.11    # nM/s
 
 # mRNA degradation: average yeast mRNA half-life ~20 min (genome-wide
-# range ~3-90+ min, no strong correlation with length/function).
-# Source: Wang, Liu, Storey et al. (2002) PNAS 99(9):5860-5865,
-# "Precision and functional specificity in mRNA decay" -- half-lives
-# ranging from ~3 min to >90 min genome-wide; Herrick, Delaney &
-# Jacobson (1990) Mol Gen Genomics reports an average of ~22 min.
-# k = ln(2) / (20 min * 60 s/min)
-k_degrade_mRNA = 5.78e-4   # s^-1  -- typical value (Wang et al. 2002 PNAS)
+# range ~3-90+ min). Source: Wang, Liu, Storey et al. (2002) PNAS
+# 99(9):5860-5865. k = ln(2) / (20 min * 60 s/min)
+k_degrade_mRNA = 5.78e-4   # s^-1
 
-# --- Translation -----------------------------------------------------------
-# *** PLACEHOLDER *** -- no specific sourced value.
-k_translate = 2e-2   # s^-1  -- PLACEHOLDER
+# Translation: no specific sourced value.
+k_translate = 2e-2   # s^-1
 
-# --- Maturation --------------------------------------------------------
-# Reporter: GFP variant (yEGFP/GFPmut3 class), per your input.
-# I could NOT find an in-yeast measurement specific to GFPmut3 through
-# search -- Guerra, Vuillemenot, Rae, Ladyhina & Milias-Argeitis (2022)
-# ACS Synth Biol 11:1129-1141 systematically measured 12 FPs in budding
-# yeast and found avGFP-derived variants mature fast via one-step
-# kinetics (sfGFP: 6.9 min half-time, 95% CI [5, 10.5]), but did not
-# test plain GFPmut3. Using 15 min as a middle-of-range placeholder
-# (within the 15-30 min range you indicated) -- replace with a direct
-# measurement or the Guerra et al. supplementary data if your exact
-# variant is closer to one they tested.
-k_mat = 7.70e-4   # s^-1  -- PLACEHOLDER (15 min half-time, see note above)
+# Maturation: GFP variant (yEGFP/GFPmut3 class). Guerra et al. (2022)
+# ACS Synth Biol 11:1129-1141 measured sfGFP at 6.9 min half-time in
+# yeast but did not test GFPmut3; using 15 min as a middle-of-range
+# estimate.
+k_mat = 7.70e-4   # s^-1
 
-# --- Reporter (mature protein) degradation --------------------------------
-# Stability not yet decided (your input) -- defaulting to STABLE/native,
-# since that's the common case absent an explicit degron tag.
-# Native (non-destabilized) yEGFP3 half-life in yeast ~ 7 hours.
-# Source: Mateus & Avery (2000) Yeast 16(14):1313-1323, "Destabilized
-# green fluorescent protein for monitoring dynamic changes in yeast
-# gene expression with flow cytometry" -- cited directly (with the 7h
-# figure) by the 2009 iGEM DTU-Denmark team's model write-up:
-# "fusion of GFP and a PEST degradation signal from... Cln2, which has
-# been demonstrated to reduce the half-life from 7 hours to 30 minutes."
-# IF you later add a degron tag (e.g. Cln2-PEST), replace this with
-# ~30 min half-life instead (k ~ 3.85e-4 s^-1).
-# k = ln(2) / (7 h * 3600 s/h)
-k_degrade_mature = 2.75e-5   # s^-1  -- PLACEHOLDER default (stable GFP assumed)
+# Reporter (mature protein) degradation: stability not yet decided;
+# defaulting to STABLE/native. Native yEGFP3 half-life ~7 hours.
+# Source: Mateus & Avery (2000) Yeast 16(14):1313-1323. If a degron
+# tag (e.g. Cln2-PEST) is added later, swap to ~30 min (k ~3.85e-4 s^-1).
+k_degrade_mature = 2.75e-5   # s^-1
 
 # ──────────────────────────────────────────────────────────────
 # ODE DEFINITION
@@ -197,11 +152,10 @@ def reporter_ode(t, y, k_act12, k_deact12, k_txn, k_txn_basal, k_deg_mRNA,
     return [dSte12a_dt, dmRNA_dt, dRepD_dt, dRepM_dt]
 
 # ──────────────────────────────────────────────────────────────
-# INITIAL CONDITIONS -- basal steady state (see MODELING STATUS)
+# INITIAL CONDITIONS -- basal steady state
 # ──────────────────────────────────────────────────────────────
 # Valid in closed form because the promoter response is linear (v1) and
-# Ste12* = 0 at basal (no Fus3* before stimulation, no basal leak on
-# the Ste12 switch itself -- only the promoter leaks).
+# Ste12* = 0 at basal (no Fus3* before stimulation).
 mRNA_basal     = k_transcribe_basal / k_degrade_mRNA
 Rep_dark_basal = k_translate * mRNA_basal / k_mat
 Rep_mat_basal  = k_translate * mRNA_basal / k_degrade_mature
@@ -210,13 +164,17 @@ y0 = [0.0, mRNA_basal, Rep_dark_basal, Rep_mat_basal]
 # ──────────────────────────────────────────────────────────────
 # SIMULATION
 # ──────────────────────────────────────────────────────────────
+# LSODA (not RK45): the Kofahl & Klipp-sourced rate constants make
+# this system numerically stiff (fast sub-processes alongside the
+# hours-long simulation window); RK45 stalls, LSODA auto-switches
+# to an implicit stiff method and solves it in milliseconds.
 t_start  = 0
-t_end    = 6 * 3600     # 4 hours -- extended from Modules 1-3's 3 hours,
+t_end    = 6 * 3600     # 6 hours -- extended from Modules 1-3's 3 hours,
                          # since transcription/translation/maturation are
-                         # slower processes (per your input)
+                         # slower processes
 n_points = 5000
 
-L_values_nM = [1e5]
+L_values_nM = [1e5]     # matching Modules 1-3 (100 uM tyramine, wet-lab dose)
 colors = plt.cm.viridis(np.linspace(0.15, 0.85, len(L_values_nM)))
 
 results_m4 = {}
@@ -253,68 +211,57 @@ for L in L_values_nM:
                np.column_stack([sol.t, sol.y[0], sol.y[1], sol.y[2], sol.y[3]]),
                header=header, fmt="%.6e")
 
-# ──────────────────────────────────────────────────────────────
-# PLOTTING
-# ──────────────────────────────────────────────────────────────
-fig = plt.figure(figsize=(14, 10))
-gs  = gridspec.GridSpec(2, 2, hspace=0.42, wspace=0.35)
-
-# ── Panel A: Reporter_mature(t) -- final biosensor signal ────
-ax1 = fig.add_subplot(gs[0, 0])
-for (L, sol), c in zip(results_m4.items(), colors):
-    ax1.plot(sol.t / 60, sol.y[3], color=c, lw=2, label=f"[L] = {L} nM")
-ax1.set_xlabel("Time (min)")
-ax1.set_ylabel("[Reporter$_{mature}$] (nM)")
-ax1.set_title("A.  Fluorescent reporter over time\n(final biosensor readout)")
-ax1.legend(fontsize=7, loc='upper left')
-ax1.set_xlim(0, t_end / 60)
-ax1.set_ylim(bottom=0)
-
-# ── Panel B: All four species for [L] = 5 nM = K_D ───────────
-ax2 = fig.add_subplot(gs[0, 1])
 L_demo = L_values_nM[0]
+
+# ──────────────────────────────────────────────────────────────
+# PLOTTING -- each panel saved as its own PDF
+# ──────────────────────────────────────────────────────────────
+
+# ── A: Reporter_mature(t) -- final biosensor signal ───────────
+figA, axA = plt.subplots(figsize=(6.5, 5))
+for (L, sol), c in zip(results_m4.items(), colors):
+    axA.plot(sol.t / 60, sol.y[3], color=c, lw=2, label=f"[L] = {L:.0f} nM")
+axA.set_xlabel("Time (min)")
+axA.set_ylabel("[Reporter$_{mature}$] (nM)")
+axA.set_title("Fluorescent reporter over time\n(final biosensor readout)")
+axA.legend(fontsize=9, loc='upper left')
+axA.set_xlim(0, t_end / 60)
+axA.set_ylim(bottom=0)
+figA.tight_layout()
+figA.savefig(os.path.join(FIGURE_DIR, "module4_A_reporter_timecourse.pdf"))
+plt.close(figA)
+
+# ── B: All four species at the simulated dose ─────────────────
+figB, axB = plt.subplots(figsize=(6.5, 5))
 sol_demo = results_m4[L_demo]
 t_min = sol_demo.t / 60
-ax2.plot(t_min, sol_demo.y[0], lw=2, color='steelblue',  label='Ste12*')
-ax2.plot(t_min, sol_demo.y[1], lw=2, color='darkorange', label='mRNA')
-ax2.plot(t_min, sol_demo.y[2], lw=2, color='gray',       label='Reporter (dark)')
-ax2.plot(t_min, sol_demo.y[3], lw=2, color='forestgreen', label='Reporter (mature)')
-ax2.set_xlabel("Time (min)")
-ax2.set_ylabel("Concentration (nM)")
-ax2.set_title(f"B.  All four species\n([L] = {L_demo} nM = $K_D$)")
-ax2.legend(fontsize=8)
-ax2.set_xlim(0, t_end / 60)
+axB.plot(t_min, sol_demo.y[0], lw=2, color='steelblue',  label='Ste12*')
+axB.plot(t_min, sol_demo.y[1], lw=2, color='darkorange', label='mRNA')
+axB.plot(t_min, sol_demo.y[2], lw=2, color='gray',       label='Reporter (dark)')
+axB.plot(t_min, sol_demo.y[3], lw=2, color='forestgreen', label='Reporter (mature)')
+axB.set_xlabel("Time (min)")
+axB.set_ylabel("Concentration (nM)")
+axB.set_title(f"All four species\n([L] = {L_demo:.0f} nM, wet-lab dose)")
+axB.legend(fontsize=9)
+axB.set_xlim(0, t_end / 60)
+figB.tight_layout()
+figB.savefig(os.path.join(FIGURE_DIR, "module4_B_all_species.pdf"))
+plt.close(figB)
 
-# ── Panel C: [Reporter_mature] at t = t_end vs [L] (dose-response) ──
-# NOTE: with a stable reporter this is NOT a true steady state (see
-# MODELING STATUS) -- it's the signal at a fixed assay time, which is
-# how a real plate-reader/flow measurement would actually be read out.
-ax3 = fig.add_subplot(gs[1, 0])
-Rep_at_tend = [results_m4[L].y[3][-1] for L in L_values_nM]
-ax3.semilogx(L_values_nM, Rep_at_tend, 'o-', color='forestgreen', lw=2, ms=8)
-ax3.axvline(5.0, color='crimson', ls='--', lw=1.5, label='$K_D$ = 5 nM')
-ax3.set_xlabel("[L] (nM, log scale)")
-ax3.set_ylabel(f"[Reporter$_{{mature}}$] at t={t_end/3600:.0f}h (nM)")
-ax3.set_title("C.  Reporter signal vs [L]\n(NOT steady state -- see script notes)")
-ax3.legend(fontsize=9)
-#ax3.set_ylim(bottom=0)
-
-# ── Panel D: k_degrade_mature sensitivity (stable vs destabilized) ──
-ax4 = fig.add_subplot(gs[1, 1])
-L_fixed = 5.0
-t_m3, Fus3_m3 = load_module3_output(L_fixed)
+# ── C: Reporter stability sensitivity (stable vs destabilized) ──
+figC, axC = plt.subplots(figsize=(6.5, 5))
+t_m3, Fus3_m3 = load_module3_output(L_demo)
 Fus3_interp_fixed = interp1d(t_m3, Fus3_m3, kind='cubic', fill_value='extrapolate')
 t_eval = np.linspace(t_start, t_end, n_points)
 
 k_deg_variants = {
-    'stable (7 h t\u00bd, this script)': k_degrade_mature,
+    'stable (7 h t\u00bd, this script)':        k_degrade_mature,
     'destabilized (30 min t\u00bd, Cln2-PEST)': np.log(2) / (30 * 60),
-    'fast degron (~7 min t\u00bd)': np.log(2) / (7 * 60),
+    'fast degron (~7 min t\u00bd)':             np.log(2) / (7 * 60),
 }
 variant_colors = ['#2ca02c', '#ff7f0e', '#d62728']
 
 for (label, kdeg), c in zip(k_deg_variants.items(), variant_colors):
-    # recompute matching basal steady state for a fair comparison
     rep_mat_basal_v = k_translate * mRNA_basal / kdeg
     y0_v = [0.0, mRNA_basal, Rep_dark_basal, rep_mat_basal_v]
     sol_v = solve_ivp(
@@ -323,33 +270,26 @@ for (label, kdeg), c in zip(k_deg_variants.items(), variant_colors):
               k_transcribe, k_transcribe_basal, k_degrade_mRNA,
               k_translate, k_mat, kdeg,
               Ste12_total, Fus3_interp_fixed),
-        method='RK45', rtol=1e-8, atol=1e-10
+        method='LSODA', rtol=1e-8, atol=1e-10
     )
-    ax4.plot(sol_v.t / 60, sol_v.y[3], lw=2, color=c, label=label)
+    axC.plot(sol_v.t / 60, sol_v.y[3], lw=2, color=c, label=label)
 
-ax4.set_xlabel("Time (min)")
-ax4.set_ylabel("[Reporter$_{mature}$] (nM)")
-ax4.set_title("D.  Reporter stability matters\n"
-              f"[L] = {L_fixed} nM = $K_D$")
-ax4.legend(fontsize=7)
-ax4.set_xlim(0, t_end / 60)
+axC.set_xlabel("Time (min)")
+axC.set_ylabel("[Reporter$_{mature}$] (nM)")
+axC.set_title(f"Reporter stability matters\n[L] = {L_demo:.0f} nM")
+axC.legend(fontsize=9)
+axC.set_xlim(0, t_end / 60)
+figC.tight_layout()
+figC.savefig(os.path.join(FIGURE_DIR, "module4_C_stability_sensitivity.pdf"))
+plt.close(figC)
 
-fig.suptitle(
-    "Module 4 -- Reporter Expression (linear v1, basal leak, stable-GFP default)\n"
-    "Ste12_total from SGD median abundance [PLACEHOLDER]  |  "
-    "k_mat, k_degrade_mRNA, k_degrade_mature partially sourced (see script)  |  "
-    "transcription/translation rates PLACEHOLDER",
-    fontsize=9, y=1.01
-)
-
-plt.savefig("../figures/module4_reporter.png", dpi=150, bbox_inches='tight')
-plt.close()
-print("Figure saved.")
+print("Figures saved: module4_{A_reporter_timecourse,B_all_species,"
+      "C_stability_sensitivity}.pdf")
 
 # ──────────────────────────────────────────────────────────────
-# SUMMARY TABLE
+# SIGNAL SUMMARY
 # ──────────────────────────────────────────────────────────────
-print(f"\n── Signal at t = {t_end/3600:.0f}h (NOT steady state -- stable reporter) ──────")
+print(f"\n-- Signal at t = {t_end/3600:.0f}h (NOT steady state -- stable reporter) --")
 print(f"{'[L] (nM)':>10} {'[Ste12*]':>10} {'[mRNA]':>10} "
       f"{'[Rep_dark]':>12} {'[Rep_mature]':>13}")
 print("-" * 60)
@@ -360,21 +300,7 @@ for L, sol in results_m4.items():
     rm  = sol.y[3][-1]
     print(f"{L:>10.1f} {s12:>10.3f} {m:>10.3f} {rd:>12.3f} {rm:>13.3f}")
 
-print("\n── Basal (t=0) initial conditions ─────────────────────────────────")
+print("\n-- Basal (t=0) initial conditions ----------------------------------")
 print(f"  mRNA_basal          = {mRNA_basal:.4f} nM")
 print(f"  Reporter_dark_basal = {Rep_dark_basal:.4f} nM")
 print(f"  Reporter_mature_basal (LOD floor) = {Rep_mat_basal:.4f} nM")
-
-print("\n── Parameter status ──────────────────────────────────────────────")
-print(f"  Ste12_total       = {Ste12_total} nM      <- PLACEHOLDER (SGD median abundance)")
-print("  k_activate/deactivate_Ste12                <- PLACEHOLDER, no clean source")
-print("  k_transcribe, k_transcribe_basal            <- PLACEHOLDER, ratio loosely")
-print("                                                  informed by typical fold-induction")
-print(f"  k_degrade_mRNA    = {k_degrade_mRNA:.2e} 1/s <- ~20 min half-life (Wang et al. 2002 PNAS)")
-print("  k_translate                                 <- PLACEHOLDER, no source")
-print(f"  k_mat             = {k_mat:.2e} 1/s <- 15 min placeholder (Guerra et al. 2022")
-print("                                                  measured sfGFP at 6.9 min; GFPmut3 not")
-print("                                                  directly tested in that study)")
-print(f"  k_degrade_mature  = {k_degrade_mature:.2e} 1/s <- stable-GFP default, 7h half-life")
-print("                                                  (Mateus & Avery 2000). SWAP if you add")
-print("                                                  a degron tag (e.g. ~30 min, same paper)")
